@@ -74,13 +74,16 @@
 	// Get pinned views
 	$: pinnedViews = views.filter((v) => v.isPinned || pinnedViewIdList.includes(v.id));
 
-	// Get views by group
-	function getViewsForGroup(groupId: string): SidebarView[] {
-		return filteredViews.filter((v) => v.groupId === groupId);
-	}
+	// Reactive: views grouped by groupId
+	$: viewsByGroup = filteredViews.reduce((acc, view) => {
+		const groupId = view.groupId || '__ungrouped__';
+		if (!acc[groupId]) acc[groupId] = [];
+		acc[groupId].push(view);
+		return acc;
+	}, {} as Record<string, SidebarView[]>);
 
 	// Get ungrouped views
-	$: ungroupedViews = filteredViews.filter((v) => !v.groupId);
+	$: ungroupedViews = viewsByGroup['__ungrouped__'] || [];
 
 	// Sorted groups
 	$: sortedGroups = [...groups].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
@@ -160,12 +163,12 @@
 			{/if}
 
 			{#each sortedGroups as group (group.id)}
-				{@const groupViews = getViewsForGroup(group.id)}
+				{@const groupViews = viewsByGroup[group.id] || []}
 				{@const isCollapsed = collapsedGroupIds.includes(group.id)}
 				{#if groupViews.length > 0 || !searchQuery}
 					<div class="view-group">
 						<button class="group-header" on:click={() => handleToggleGroup(group)}>
-							<span class="collapse-icon" class:collapsed={isCollapsed}>v</span>
+							<span class="collapse-icon" class:collapsed={isCollapsed}>&gt;</span>
 							{#if group.icon}
 								<span class="group-icon">{group.icon}</span>
 							{/if}
@@ -343,10 +346,15 @@
 	.collapse-icon {
 		font-size: 10px;
 		transition: transform 0.15s ease;
+		display: inline-block;
 	}
 
 	.collapse-icon.collapsed {
-		transform: rotate(-90deg);
+		transform: rotate(0deg);
+	}
+
+	.collapse-icon:not(.collapsed) {
+		transform: rotate(90deg);
 	}
 
 	.group-count {
