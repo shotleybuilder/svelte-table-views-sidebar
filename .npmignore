@@ -1,0 +1,11 @@
+src/
+tests/
+examples/
+.svelte-kit/
+vite.config.ts
+tsconfig.json
+.eslintrc.cjs
+.prettierrc
+vitest.config.ts
+*.test.ts
+*.spec.ts

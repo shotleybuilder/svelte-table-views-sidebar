@@ -20,10 +20,10 @@
 	export let showPinned: boolean = true;
 	export let searchPlaceholder: string = 'Search views...';
 
-	// Internal state
+	// Internal state - use arrays for reactivity
 	let searchQuery = '';
-	let collapsedGroups: Set<string> = new Set();
-	let pinnedViewIds: Set<string> = new Set();
+	let collapsedGroupIds: string[] = [];
+	let pinnedViewIdList: string[] = [];
 
 	const dispatch = createEventDispatcher<{
 		select: ViewSelectEvent;
@@ -38,8 +38,8 @@
 				const saved = localStorage.getItem(storageKey);
 				if (saved) {
 					const state: SidebarState = JSON.parse(saved);
-					collapsedGroups = new Set(state.collapsedGroups || []);
-					pinnedViewIds = new Set(state.pinnedViews || []);
+					collapsedGroupIds = state.collapsedGroups || [];
+					pinnedViewIdList = state.pinnedViews || [];
 					if (state.isDocked !== undefined) isDocked = state.isDocked;
 					if (state.width !== undefined) width = state.width;
 				}
@@ -53,8 +53,8 @@
 	function saveState() {
 		if (typeof localStorage !== 'undefined') {
 			const state: SidebarState = {
-				collapsedGroups: Array.from(collapsedGroups),
-				pinnedViews: Array.from(pinnedViewIds),
+				collapsedGroups: collapsedGroupIds,
+				pinnedViews: pinnedViewIdList,
 				isDocked,
 				width
 			};
@@ -72,7 +72,7 @@
 		: views;
 
 	// Get pinned views
-	$: pinnedViews = views.filter((v) => v.isPinned || pinnedViewIds.has(v.id));
+	$: pinnedViews = views.filter((v) => v.isPinned || pinnedViewIdList.includes(v.id));
 
 	// Get views by group
 	function getViewsForGroup(groupId: string): SidebarView[] {
@@ -92,31 +92,25 @@
 
 	function handleTogglePin(view: SidebarView, event: MouseEvent) {
 		event.stopPropagation();
-		const newPinned = !pinnedViewIds.has(view.id);
-		if (newPinned) {
-			pinnedViewIds.add(view.id);
+		const isPinned = pinnedViewIdList.includes(view.id);
+		if (isPinned) {
+			pinnedViewIdList = pinnedViewIdList.filter(id => id !== view.id);
 		} else {
-			pinnedViewIds.delete(view.id);
+			pinnedViewIdList = [...pinnedViewIdList, view.id];
 		}
-		pinnedViewIds = pinnedViewIds; // Trigger reactivity
 		saveState();
-		dispatch('pin', { view, isPinned: newPinned });
+		dispatch('pin', { view, isPinned: !isPinned });
 	}
 
 	function handleToggleGroup(group: ViewGroup) {
-		const newCollapsed = !collapsedGroups.has(group.id);
-		if (newCollapsed) {
-			collapsedGroups.add(group.id);
+		const isCollapsed = collapsedGroupIds.includes(group.id);
+		if (isCollapsed) {
+			collapsedGroupIds = collapsedGroupIds.filter(id => id !== group.id);
 		} else {
-			collapsedGroups.delete(group.id);
+			collapsedGroupIds = [...collapsedGroupIds, group.id];
 		}
-		collapsedGroups = collapsedGroups; // Trigger reactivity
 		saveState();
-		dispatch('groupToggle', { group, isCollapsed: newCollapsed });
-	}
-
-	function isGroupCollapsed(groupId: string): boolean {
-		return collapsedGroups.has(groupId);
+		dispatch('groupToggle', { group, isCollapsed: !isCollapsed });
 	}
 </script>
 
@@ -167,17 +161,18 @@
 
 			{#each sortedGroups as group (group.id)}
 				{@const groupViews = getViewsForGroup(group.id)}
+				{@const isCollapsed = collapsedGroupIds.includes(group.id)}
 				{#if groupViews.length > 0 || !searchQuery}
 					<div class="view-group">
 						<button class="group-header" on:click={() => handleToggleGroup(group)}>
-							<span class="collapse-icon" class:collapsed={isGroupCollapsed(group.id)}>v</span>
+							<span class="collapse-icon" class:collapsed={isCollapsed}>v</span>
 							{#if group.icon}
 								<span class="group-icon">{group.icon}</span>
 							{/if}
 							<span class="group-name">{group.name}</span>
 							<span class="group-count">{groupViews.length}</span>
 						</button>
-						{#if !isGroupCollapsed(group.id)}
+						{#if !isCollapsed}
 							<ul class="view-list">
 								{#each groupViews as view (view.id)}
 									<li class="view-item" class:selected={view.id === selectedViewId}>
@@ -192,11 +187,11 @@
 										</button>
 										<button
 											class="pin-button"
-											class:pinned={pinnedViewIds.has(view.id)}
+											class:pinned={pinnedViewIdList.includes(view.id)}
 											on:click={(e) => handleTogglePin(view, e)}
-											title={pinnedViewIds.has(view.id) ? 'Unpin view' : 'Pin view'}
+											title={pinnedViewIdList.includes(view.id) ? 'Unpin view' : 'Pin view'}
 										>
-											{pinnedViewIds.has(view.id) ? '*' : 'o'}
+											{pinnedViewIdList.includes(view.id) ? '*' : 'o'}
 										</button>
 									</li>
 								{/each}
@@ -226,11 +221,11 @@
 								</button>
 								<button
 									class="pin-button"
-									class:pinned={pinnedViewIds.has(view.id)}
+									class:pinned={pinnedViewIdList.includes(view.id)}
 									on:click={(e) => handleTogglePin(view, e)}
-									title={pinnedViewIds.has(view.id) ? 'Unpin view' : 'Pin view'}
+									title={pinnedViewIdList.includes(view.id) ? 'Unpin view' : 'Pin view'}
 								>
-									{pinnedViewIds.has(view.id) ? '*' : 'o'}
+									{pinnedViewIdList.includes(view.id) ? '*' : 'o'}
 								</button>
 							</li>
 						{/each}
